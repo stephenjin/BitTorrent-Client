@@ -2,7 +2,6 @@
 	Phase 1 Bit Torrent Client
 */
 package Src;
-
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -19,20 +18,16 @@ import java.net.*;
 public class Message{
 	
 	/*The various message types that can be sent and their byte[] encoding*/
-	public byte[] keepAliveLength = {0,0,0,0};
-	public byte[] chokeLength = {0,0,0,1};
-	public byte[] unchokeLength = {0,0,0,1};
-	public byte[] interestedLength = {0,0,0,1};
-	public byte[] uninterestedLength = {0,0,0,1};
-	public static byte[] have = {0,0,0,5};
-	public static byte[] request = {0,0,0,13};
+	public static final byte[] keepAliveLength = {0,0,0,0};
+	public static final byte[] have = {0,0,0,5};
+	public static final byte[] request = {0,0,0,13};
 	
 	
 
 	//public Message have = new Message({0,0,0,5},4 );
 	
-	public byte[] length;
-	public int ID;
+	private byte[] length;
+	private int ID;
 	
 	/*The basic message*/
 	public Message(byte[] len, int id){
@@ -118,6 +113,27 @@ public class Message{
 		}
 	}
 	
+	
+	/*A message of the bitfield type*/
+	public static class Bitfield extends Message {
+			
+		public final byte[] bitfield;
+			
+		public Bitfield(final byte[] bf){
+			super(ByteBuffer.allocate(4).putInt(1 + bf.length).array(), 5);
+			this.bitfield = bf;
+			
+			}
+			
+		public byte[] makePayload() throws IOException{ //constructs the payload in the form of a byte array
+				
+			return bitfield;
+				
+			}	
+		}
+		
+	
+	           
 	public static void sendMessage(Message m, DataOutputStream output) throws IOException{
 		
 		if (m != null){
@@ -129,11 +145,6 @@ public class Message{
 				System.arraycopy(m.length, 0, mess, 0, m.length.length);
 				
 				mess[4]= (byte)m.ID;
-				//System.arraycopy(m.ID, 0, mess, m.length.length, 1);
-				//for(int i = 0; i < mess.length; i++)
-				//{
-					//System.out.print(mess[i]);
-				//}
 				output.write(mess);
 			}
 			else
@@ -142,12 +153,6 @@ public class Message{
 				System.arraycopy(m.length, 0, mess, 0, m.length.length);
 				mess[4]=(byte)m.ID;
 				System.arraycopy(m.makePayload(), 0, mess, m.length.length+1, m.makePayload().length);
-				//for(int i = 0; i < mess.length; i++)
-				//{
-				//	System.out.println(mess[i]);
-				//}
-				
-				
 				output.write(mess);
 			}
 			
@@ -156,10 +161,15 @@ public class Message{
 		}
 	}
 	
-	
-	
+	public  static void sendKeepAliveMessage(Message m, DataOutputStream output) throws IOException{
 
-	}
+			output.write(keepAliveLength);
+			return;
+			
+		}
+
+
+}
 	
 	
 	

@@ -30,14 +30,15 @@ public class Tracker
 	public int fileLength;
 	private static byte[] peerid;
 	private int port;
-	private URL announce;
+	public URL announce;
 	private int filesize;
-	public int left;
+	public  int left;
 	private String event;
-	public int uploaded;
-	public int downloaded;
+	public  int uploaded;
+	public  int downloaded;
 	private URL requestString;
-	public int interval;
+	public  int interval;
+	public  int min_interval;
 	private String fileName;
 	
 	public static ArrayList<String> peers = new ArrayList<String>();
@@ -79,12 +80,17 @@ public class Tracker
 	public static final ByteBuffer KEY_INTERVAL = ByteBuffer.wrap(new byte[] {
 			'i', 'n', 't', 'e', 'r', 'v', 'a', 'l' });
 	
+	/**
+     * Key used to retrieve the interval.
+     */
+	public static final ByteBuffer KEY_MININTERVAL = ByteBuffer.wrap(new byte[] {
+			'm', 'i', 'n', ' ', 'i', 'n', 't', 'e', 'r', 'v', 'a', 'l' });
 
 	//Inititalizes a tracker
    public Tracker(TorrentInfo ti, String file) throws Exception {
 		infohash = ti.info_hash.array();		
 		port = ti.announce_url.getPort();
-		event = null;
+		event = "started";
 		filesize = ti.file_length;
 		this.left = filesize;
 		String peerIdString = makePeerID();
@@ -93,6 +99,7 @@ public class Tracker
 		piecesHash = ti.piece_hashes;
 		pieceLength = ti.piece_length;
 		fileLength = ti.file_length;
+		min_interval = -1;
 		
 		announce = ti.announce_url;
 		requestString = createURL(ti.announce_url);
@@ -101,7 +108,7 @@ public class Tracker
 	}
    
    //creates a Tracker announce request url
-   private URL createURL(URL announce_url) throws Exception {
+  public URL createURL(URL announce_url) throws Exception {
 	   
 	   String infoHash = "?info_hash="+hexToEncodeURL(bytesToHex(infohash));
 	   String peerID = "&peer_id="+hexToEncodeURL(bytesToHex(getPeerid()));
@@ -109,7 +116,6 @@ public class Tracker
 	   String uploaded = "&uploaded="+this.uploaded;
 	   String downloaded = "&downloaded="+this.downloaded;
 	   String left = "&left="+this.left;
-	   event = "started";
 	   String Event = "&event="+event;
 	   
 	   String url = announce_url.toString()+infoHash+peerID+Port+uploaded+downloaded+left;
@@ -163,6 +169,7 @@ public class Tracker
 		
 		//extract interval
 		this.interval = (int) responseMap.get(KEY_INTERVAL);
+		this.min_interval = (int)responseMap.get(KEY_MININTERVAL);
 		
 		//extract list of peers
 		List<Map<ByteBuffer,Object>> peers = (List<Map<ByteBuffer,Object>>) responseMap.get(KEY_PEERS);
@@ -293,5 +300,10 @@ public class Tracker
 	public void setEvent(String k){
 		event = k;
 	}
+	
+	public void setRequestString(URL request){
+		requestString = request;
+	}
+	
 	
 }
