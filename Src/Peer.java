@@ -106,12 +106,13 @@ public class Peer implements Runnable{
 		this.fileName = file;
 		this.totalBytes = fileLen;
 		this.savedFile = new File(fileName);
+		this.peerbf = new boolean [tracker.piecesHash.length];
 		if(savedFile.exists() && !resumeInitialized)
 		{	
 			resume = true;
 		}
 		this.tracker = tracker;
-		this.peerbf = null;
+		this.peerbf = new boolean[tracker.piecesHash.length];
 		this.interval = announceInterval();
 		pieceRarity = new int[tracker.piecesHash.length]; //initialize array to keep track of how many peers have each piece
 		
@@ -135,7 +136,8 @@ public class Peer implements Runnable{
 				updateBytesUploaded(Integer.parseInt(temp));
 				temp = in.readLine();
 				updateBytesDownloaded(Integer.parseInt(temp));
-				resumeInitialized = true;			
+				resumeInitialized = true;
+				System.out.println("Resuming download...");
 			}
 			boolean[] test = bitfield; //log file not found, the file download is started over
 			
@@ -154,7 +156,7 @@ public class Peer implements Runnable{
         */
 
     //connects and maintains communication with the peer
-public void connectPeer() throws IOException{
+public synchronized void connectPeer() throws IOException{
   //Open a TCP socket on the local machine and contact the peer using the BT peer protocol and request a piece of the file.
   
 	s = new Socket(IP, port);
@@ -690,6 +692,11 @@ public void run()
 		if (ind >-1 && ind < peerbf.length)
 		peerbf[ind] = true;
 		
+		if(getBitfield(ind) == false){ //Send Interested
+			interested();
+			System.out.println("Sent Interest");					
+		}	
+		
 	}
 		
 	
@@ -929,8 +936,14 @@ public void run()
 		 
 		for(Peer p : PeerList.getPeerList()){
 			
+			try{
 			Message have = new Message.Have(ind);
 			Message.sendMessage(have, p.output);
+			}
+			catch (Exception e) {
+				System.out.print("Error sending have message to peer: "+IP);;
+				continue;
+				}
 		}
 	 }
 	 
@@ -970,7 +983,7 @@ public void run()
 		
 
 	
-	//Initializes the Bitfield
+	//Initializes the Bitfield nad Peer Bitfield
 	public static void initializeBitfield(Tracker t)
 
 		{
@@ -982,6 +995,7 @@ public void run()
 				k = t.piecesHash.length + (8-k);
 			}
 			bitfield = new boolean[k];//make this the number of pieces
+			
 			for(i = 0; i< bitfield.length; i++)
 			{
 				updateBitfield(i, false);

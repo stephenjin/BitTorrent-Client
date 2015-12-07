@@ -136,7 +136,7 @@ public class Message{
 	           
 	public static void sendMessage(Message m, DataOutputStream output) throws IOException{
 		
-		if (m != null){
+		if (m != null && output != null){
 			
 			
 			if(m.makePayload() == null)
