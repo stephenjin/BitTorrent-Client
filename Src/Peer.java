@@ -1,14 +1,13 @@
 /*Julia Sutula, Stephen Jin, Sehaj Singh
 	Phase 1 Bit Torrent Client
 */
-package Src;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.security.*; //importing everything just in case
-
 
 import GivenTools.ToolKit;
 import GivenTools.TorrentInfo;
@@ -57,7 +56,8 @@ public class Peer implements Runnable{
 	private int bytesDownloaded =0;
 	private int bytesUploaded = 0;
 	private int totalBytes;
-	
+	private int pieceIndex;
+	private int pieceOffset;
 	
 	private boolean alive = true;
 	private boolean firstRequest = true;
@@ -66,6 +66,7 @@ public class Peer implements Runnable{
 	
 	private boolean[] peerbf;
 	private static boolean[] bitfield; //this needs to be synchronized among peers
+	public static int[] pieceRarity;
 	
 	File savedFile;
 	
@@ -111,6 +112,7 @@ public class Peer implements Runnable{
 		this.tracker = tracker;
 		this.peerbf = null;
 		this.interval = announceInterval();
+		pieceRarity = new int[tracker.piecesHash.length]; //initialize array to keep track of how many peers have each piece
 		
 		if(resume)//set bitfield to pick up where it was left off
 		{
@@ -325,6 +327,7 @@ public void run()
 						case 4: //have message
 							System.out.print("Peer Have Message from Peer: ");
 							System.out.println(IP);
+							decodeHaveMessage();
 							break;
 						case 5: //bitfield message
 							System.out.print("Peer Bitfield Message from Peer: ");
@@ -357,7 +360,7 @@ public void run()
 	catch(Exception w)
 	{
 		try{
-
+			
 			exitGracefully();
 			return;
 		}
@@ -475,11 +478,18 @@ public void run()
 		public byte[] extractPiece()
 		{
 			try{
-					int index = input.readInt();
+					pieceIndex = input.readInt();
 							
-					int begin = input.readInt();
+					pieceOffset = input.readInt();
 					
-					byte[] block = new byte[pieceLength];
+					byte[] block ;
+					
+					if(pieceIndex == piecesHash.length-1){
+					block = new byte[totalBytes-((piecesHash.length-1)*pieceLength)];
+					}
+					else{
+						block =  new byte[pieceLength];
+					}
 					input.readFully(block);
 					
 					return block;
@@ -516,20 +526,37 @@ public void run()
 							firstRequest = false;
 					}
 					
-					int j;
-					for(j = 0; j < bitfield.length; j++) //Checks for missing pieces to see which piece to request
+					//take get bitfields for Peers that have sent a bitfield message
+					ArrayList<boolean[]> peerBitfields = new ArrayList<boolean[]>();
+					int[] k = pieceRarity;		
+						for(Peer p :PeerList.getPeerList()){
+							if(p.getPeerBF() != null)
+								peerBitfields.add(p.getPeerBF());
+								
+						}
+					
+					
+					// If no peers have sent any bitfield messages, request the first missing piece					
+					if(peerBitfields.isEmpty()){
+					for(int j = 0; j < bitfield.length; j++) //Checks for missing pieces to see which piece to request
 					{
 							if(peerbf[j] == true && getBitfield(j) == false){ 
 							updateIndex(j);
 							break;							
-						}	
+						}
 						
 					}
+					}
+					else{
+					// Otherwise get the rarest piece
+					calcRarities(peerBitfields);
+					updateIndex(rarestPieceIndex());
+					}
 					
-					if(totalBytes - getBytesDownloaded() < pieceLength)  //Last missing piece
-					{
-						Message.Request requestPiece = new Message.Request(getIndex(), 0, (totalBytes- getBytesDownloaded()));
-						pieceLength = totalBytes- getBytesDownloaded(); 
+					
+					if(index == piecesHash.length - 1)  //Last piece
+					{	
+						Message.Request requestPiece = new Message.Request(getIndex(), 0, (totalBytes-((piecesHash.length-1)*pieceLength)));
 						Message.sendMessage(requestPiece, output);
 						System.out.println("Sent Request for Piece");
 					}
@@ -622,6 +649,17 @@ public void run()
 		
 	}
 	
+	//Decodes a peers Have message, updates peer's bitfield
+	public void decodeHaveMessage() throws IOException
+	{
+		int ind = input.readInt();
+		//System.out.println(ind);
+		if (ind >-1 && ind < peerbf.length)
+		peerbf[ind] = true;
+		
+	}
+		
+	
 	//Sends the request piece to the remote peer
 	public void sendPiece(int ind, int begin, int length) throws IOException
 	{
@@ -655,7 +693,7 @@ public void run()
 		byte[] piece = extractPiece();
 		System.out.print("Extracted Piece from Peer: ");
 		System.out.println(IP);
-		boolean verify = verifyHASH(piece, getIndex());
+		boolean verify = verifyHASH(piece, pieceIndex);
 		if(verify)
 		{
 			if(piece == null)
@@ -666,12 +704,16 @@ public void run()
 			writePieceToFile(piece);
 			
 			updateBitfield(getIndex(), true);
+			System.out.print("Bitfield index updated: "+getIndex());
 			//System.out.print(getIndex());
 			//System.out.print(bitfield[getIndex()]);
 			//Send have message to all peers
 			sendHavesToPeers(getIndex()); 	
 			
-			updateBytesDownloaded(pieceLength); 
+			if(index == piecesHash.length-1)
+				updateBytesDownloaded(totalBytes-((piecesHash.length-1)*pieceLength));
+			else
+				updateBytesDownloaded(pieceLength); 
 			
 			//offset += pieceLength;						
 			if(getBytesDownloaded() == totalBytes)//sending completed message to the tracker if last piece
@@ -720,6 +762,45 @@ public void run()
 			
 		return bf;
 	 }	 
+	 
+	 /**
+	  * @return the index of the calculated rarest piece
+	  */
+	 public int rarestPieceIndex(){
+		 
+		 int min = -1;
+		 
+		 if (pieceRarity != null){
+			 min = pieceRarity[0];
+		 }
+		 
+		 //goes through rarities to find the smallest number of occurrences
+		 for(int i = 0; i < pieceRarity.length; i++){
+			 if (min > pieceRarity[i]){
+				 min = pieceRarity[i];
+			 }
+		 }
+		 
+		 if (min == -1)
+			 return -1;
+		 
+		 //list of all rare pieces
+		 ArrayList<Integer> matchedIndexes = new ArrayList<Integer>();
+		 
+		 //if we don't have the piece, and the piece is rare, add it to matchedIndexes
+		 for (int i = 0; i < pieceRarity.length; i++){
+			 
+			 if (getBitfield(i) == false && this.peerbf[i] == true){
+				 if (min == pieceRarity[i])  
+					 matchedIndexes.add(i);
+			 }
+		 }
+		 //choose a random rare piece
+		 Random r = new Random();
+		 int ind = r.nextInt(matchedIndexes.size());
+		 
+		 return matchedIndexes.get(ind); 
+	 }
 	 
 	 
 	 /* Getter and Setter Methods for Private variables*/
@@ -779,14 +860,24 @@ public void run()
 		 return bitfieldInitialized;
 	 }
 	 
+	 public synchronized boolean[] getPeerBF(){
+		 return this.peerbf;
+	 }
+	 
+	 public synchronized static boolean[] ourBitfield(){
+		 return bitfield;
+	 }
+	 
+	 
 	//Writes a piece to the file
 	 
 	public synchronized void writePieceToFile(byte[] block) 
 	{
 			try{
 				
-				
-				FileOutputStream out = new FileOutputStream(savedFile, true);
+				RandomAccessFile out = new RandomAccessFile(savedFile, "rw");
+				out.seek((pieceIndex*pieceLength)+pieceOffset);
+				//FileOutputStream out = new FileOutputStream(savedFile, true);
 				out.write(block); //This should be changed to write piece at correct offset, just incase downloading out of order TBC
 				out.close();
 			}
@@ -824,6 +915,27 @@ public void run()
 			
 			return interval;
 	 }
+	 
+		/**
+		 * Gets the the rarity for each piece
+		 */
+		public static void calcRarities(ArrayList<boolean[]> peerBitfields){
+			
+			Arrays.fill(pieceRarity, 0); 
+			
+			for(boolean[] peerBF : peerBitfields){					
+				boolean[] ourBF = ourBitfield();
+				for(int i = 0; i < pieceRarity.length; i++){	
+					if (peerBF[i] == true){
+						pieceRarity[i] += 1;
+						if (ourBF[i] == true) //if we already have the piece, set a high rarity
+						pieceRarity[i] = 20;	
+					}
+				}
+			}
+		}
+		
+
 	
 	//Initializes the Bitfield
 	public static void initializeBitfield(Tracker t)

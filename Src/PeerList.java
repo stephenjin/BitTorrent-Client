@@ -1,4 +1,3 @@
-package Src;
 
 /*Julia Sutula, Stephen Jin, Sehaj Singh
 	Phase 1 Bit Torrent Client
