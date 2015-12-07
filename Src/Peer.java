@@ -86,9 +86,10 @@ public class Peer implements Runnable{
         * Creates a new instance of a peer
 
         * @return
+			 * @throws IOException 
         */
 	//The peer constructor
-	public Peer(byte[] peerid, String IP, int port, byte[] infohash, byte[] trackerPID, ByteBuffer[] pieces, int pieceLen, String file, int fileLen, Tracker tracker ){
+	public Peer(byte[] peerid, String IP, int port, byte[] infohash, byte[] trackerPID, ByteBuffer[] pieces, int pieceLen, String file, int fileLen, Tracker tracker ) throws IOException{
 		
 		
 		this.PeerId = peerid;
@@ -114,17 +115,31 @@ public class Peer implements Runnable{
 		this.interval = announceInterval();
 		pieceRarity = new int[tracker.piecesHash.length]; //initialize array to keep track of how many peers have each piece
 		
-		if(resume)//set bitfield to pick up where it was left off
-		{
-			long size = savedFile.length();
-			int lastPiece = (int) size/pieceLength; //number of pieces downloaded
-			for( int i = 0; i< lastPiece;  i++)
-			{
-				updateBitfield(i, true);
+		if(resume)
+		{	File log = new File("log.txt");
+			
+			//read in log file and set bitfield, upload and download amount
+			if(log.isFile() && log.canRead()){
+			BufferedReader in = new BufferedReader(new FileReader(log));
+		
+			for(int i = 0; i < bitfield.length; i++){
+				
+				if ((char)in.read() == 't')
+					updateBitfield(i, true);
+				else
+					updateBitfield(i, false);
+				
+				}
+				
+				String temp = in.readLine();
+				updateBytesUploaded(Integer.parseInt(temp));
+				temp = in.readLine();
+				updateBytesDownloaded(Integer.parseInt(temp));
+				resumeInitialized = true;			
 			}
-			resumeInitialized = true;
+			boolean[] test = bitfield; //log file not found, the file download is started over
+			
 			resume =false;
-			updateBytesDownloaded( lastPiece*pieceLength);
 		}
 		//688128
 		//File Length 14285814
@@ -351,6 +366,24 @@ public void run()
 					}
 					if(getBytesDownloaded() == totalBytes)
 						break;
+				}
+				
+				if(Thread.currentThread().isInterrupted()){
+					File log = new File("log.txt");
+					BufferedWriter out = new BufferedWriter(new FileWriter(log));
+					
+					for(int i = 0; i < bitfield.length; i++){
+						
+						if(getBitfield(i) == true)
+							out.write('t');
+						else
+							out.write('f');
+							
+					}
+					out.write(bytesUploaded+"\n");
+					out.write(bytesDownloaded+"\n");
+					out.flush();
+					out.close();
 				}
 				
 				exitGracefully();

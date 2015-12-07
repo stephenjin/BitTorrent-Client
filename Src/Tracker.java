@@ -150,7 +150,7 @@ public class Tracker
    
 	
 	@SuppressWarnings("unchecked")
-	public ArrayList<Peer> decodeTracker(byte[] tresponse) throws BencodingException{
+	public ArrayList<Peer> decodeTracker(byte[] tresponse) throws BencodingException, IOException{
 		Map<ByteBuffer, Object> responseMap;   
 		ArrayList<Peer> peerslist = new ArrayList<Peer>(); //Arraylist of peer objects
 		
