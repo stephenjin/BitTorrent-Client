@@ -23,6 +23,12 @@ public class PeerList{
 		peerMatches = list;
 	}
 
+	public static void removeFromPeerList(Peer p)
+	{
+		if(peerMatches.contains(p))
+			peerMatches.remove(p);
+	}
+	
 	public static ArrayList<Peer> getPeerList()
 	{
 		return peerMatches;

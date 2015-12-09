@@ -159,10 +159,16 @@ public class Peer implements Runnable{
 public synchronized void connectPeer() throws IOException{
   //Open a TCP socket on the local machine and contact the peer using the BT peer protocol and request a piece of the file.
   
+	try{
 	s = new Socket(IP, port);
 	output = new DataOutputStream(s.getOutputStream());
 	input = new DataInputStream(s.getInputStream());
-	System.out.println("Connected to peer");
+	System.out.println("Connected to peer: "+IP);
+	}
+	catch(Exception e){
+		System.out.println(e.getMessage());
+		RUBTClient.closePeer(IP);
+	}
    return;
 }
 
@@ -322,48 +328,48 @@ public void run()
 					{
 						case 0: //choke message
 							peerChoking = 1;
-							System.out.print("Peer Choke Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Choke Message from Peer: ");
+							//System.out.println(IP);
 							break;
 						case 1: //unchoke message
 							peerChoking = 0;
-							System.out.print("Peer Unchoke Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Unchoke Message from Peer: ");
+							//System.out.println(IP);
 							break;
 						case 2: //interested message
 							peerInterested = 1;
 							unchoke();
-							System.out.print("Peer Interested Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Interested Message from Peer: ");
+							//System.out.println(IP);
 							break;
 						case 3: //uninterested message
 							peerInterested = 0;
-							System.out.print("Peer Uninterested Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Uninterested Message from Peer: ");
+							//System.out.println(IP);
 							break;
 						case 4: //have message
-							System.out.print("Peer Have Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Have Message from Peer: ");
+							//System.out.println(IP);
 							decodeHaveMessage();
 							break;
 						case 5: //bitfield message
-							System.out.print("Peer Bitfield Message from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Peer Bitfield Message from Peer: ");
+							//System.out.println(IP);
 							decodeBitfieldMessage(length);
 							break;
 						case 6: //request message
-							System.out.print("Peer Request Message from Peer: ");
+							//System.out.print("Peer Request Message from Peer: ");
 							System.out.println(IP);
 							decodeRequestMessage();
 							break;
 						case 7: //piece message
-							System.out.print("Peer Piece Message from Peer: ");
-							System.out.println(IP);
+						//System.out.print("Peer Piece Message from Peer: ");
+						//System.out.println(IP);
 							decodePieceMessage();
 							break;
 						default:  //throw an error, unreadable message
-							System.out.print("Incorrect Message ID from Peer: ");
-							System.out.println(IP);
+							//System.out.print("Incorrect Message ID from Peer: ");
+							//System.out.println(IP);
 							break;
 					}
 					if(getBytesDownloaded() == totalBytes)
@@ -593,13 +599,13 @@ public void run()
 					{	
 						Message.Request requestPiece = new Message.Request(getIndex(), 0, (totalBytes-((piecesHash.length-1)*pieceLength)));
 						Message.sendMessage(requestPiece, output);
-						System.out.println("Sent Request for Piece");
+						//System.out.println("Sent Request for Piece");
 					}
 					else 
 					{
 						Message.Request requestPiece = new Message.Request(getIndex(), 0, pieceLength);
 						Message.sendMessage(requestPiece, output);
-						System.out.println("Sent Request for Piece");
+						//System.out.println("Sent Request for Piece");
 					}
 			 }			
 			
@@ -694,7 +700,7 @@ public void run()
 		
 		if(getBitfield(ind) == false){ //Send Interested
 			interested();
-			System.out.println("Sent Interest");					
+			//System.out.println("Sent Interest");					
 		}	
 		
 	}
@@ -709,7 +715,7 @@ public void run()
 		Message.sendMessage(piece, output);
 		updateBytesUploaded(length);
 		System.out.print("Sent piece to Peer: ");
-		System.out.println(IP);
+		//System.out.println(IP);
 		return;
 	}
 	
@@ -731,7 +737,7 @@ public void run()
 	public void decodePieceMessage() throws IOException
 	{
 		byte[] piece = extractPiece();
-		System.out.print("Extracted Piece from Peer: ");
+		System.out.print("Extracted Piece:");
 		System.out.println(IP);
 		boolean verify = verifyHASH(piece, pieceIndex);
 		if(verify)
@@ -744,7 +750,7 @@ public void run()
 			writePieceToFile(piece);
 			
 			updateBitfield(getIndex(), true);
-			System.out.print("Bitfield index updated: "+getIndex());
+			System.out.println("Bitfield index updated: "+getIndex());
 			//System.out.print(getIndex());
 			//System.out.print(bitfield[getIndex()]);
 			//Send have message to all peers
@@ -941,7 +947,7 @@ public void run()
 			Message.sendMessage(have, p.output);
 			}
 			catch (Exception e) {
-				System.out.print("Error sending have message to peer: "+IP);;
+				System.out.print("Error sending have message to peer: "+p.IP);
 				continue;
 				}
 		}
@@ -1010,13 +1016,16 @@ public void run()
 		try
 		{
 		//exiting gracefully
-		
+		alive = false;
+		if(s==null && input== null && output==null)
+			return;
 		//Print out how much time it took to download
         endTime = System.nanoTime();
         double secondsTaken = (double)(endTime - startTime) / 1000000000.0;
         System.out.print("It took " +secondsTaken + "seconds for this download/upload session with Peer: ");
         System.out.println(IP);
         
+        PeerList.removeFromPeerList(this);
 		System.out.print("Closing Connection with peer ");
 		System.out.println(IP);
 		tracker.setEvent("stopped");
@@ -1041,7 +1050,7 @@ public void run()
 		return;
 	}
 	catch(Exception e)
-	{
+	{	e.printStackTrace();
 		System.out.println("Something broke");
 		return;
 	}

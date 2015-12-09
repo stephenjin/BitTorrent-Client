@@ -39,7 +39,7 @@ public class Tracker
 	private URL requestString;
 	public  int interval;
 	public  int min_interval;
-	private String fileName;
+	public String fileName;
 	
 	public static ArrayList<String> peers = new ArrayList<String>();
 	

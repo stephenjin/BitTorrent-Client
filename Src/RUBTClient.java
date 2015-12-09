@@ -54,12 +54,14 @@ public class RUBTClient implements Runnable{
 		Peer.initializeBitfield(tracker); //initialize the shared client bitfield
 		byte[] trackerResponse = tracker.connectTracker();
 		ArrayList<Peer> peers = tracker.decodeTracker(trackerResponse); //an arraylist of peers
-		//getPeerMatch(peers);
-		peerMatches = peers;
+		getPeerMatch(peers);
+		//peerMatches = peers;
 		PeerList.updatePeerList(peerMatches);
+		System.out.println("Downloading, please wait....");
 		for(Peer p: peerMatches) //start each peer thread
 		{
 			Thread temp = new Thread(p);
+			temp.setName(p.IP);
 			temp.start();
 			threads.add(temp);
 
@@ -122,13 +124,14 @@ public class RUBTClient implements Runnable{
 		int i;
 		int match = 0;
 		//Checks to match with a peer with an IP address of 128.6.171.130 or 128.6.171.131
-		String ipCheck1 = "172.31.236.190";
+		String ipCheck1 = "128.6.171.130";
 		String ipCheck2 = "172.31.236.190";
+		System.out.print("Peers:\n");
 		for(i = 0; i< peer.size(); i++) 
 		{
 			//once a connection is established with a peer, update the peers boolean value to true
 			//make sure the boolean value is true and the ip is equal inorder to indicate that this is a peer to connect to
-			if((peer.get(i).IP.equals(ipCheck1)) || (peer.get(i).IP.equals(ipCheck2)))
+			if(!(peer.get(i).IP.equals("128.6.171.130")) )
 			{	
 				System.out.println(peer.get(i).IP);
 				peerMatches.add(peer.get(i));
@@ -147,6 +150,16 @@ public class RUBTClient implements Runnable{
 	//Returns the list of matched peers
 	public static ArrayList<Peer> getPeers(){
 		return peerMatches;
+	}
+	
+	//Close peer thread
+	public static void closePeer(String IP){
+		for(Thread t:threads){
+		if (t.getName().equals(IP)){
+			t.interrupt();
+			threads.remove(t);
+		}
+		}
 	}
 	
 
